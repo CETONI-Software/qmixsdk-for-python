@@ -1,3 +1,5 @@
+![QmixSDK Logo](doc/QmixSDK_Tiles.png) 
+
 # Qmix SDK for Python
 
 This Python package is the official integration of the 
