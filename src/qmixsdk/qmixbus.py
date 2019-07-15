@@ -188,7 +188,7 @@ class Device(HandleOwner):
         Translates a given error code into a human readable string
         """
         msg = ctypes.create_string_buffer(255)
-        result = bus_api.LCB_GetDevErrMsg(ctypes.c_ulong(errorcode), msg, ctypes.sizeof(msg))
+        result = bus_api.LCB_GetDevErrMsg(self.handle, ctypes.c_ulong(errorcode), msg, ctypes.sizeof(msg))
         if result < 0:
             return ""
         else:
