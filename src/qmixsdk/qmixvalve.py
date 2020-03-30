@@ -1,13 +1,9 @@
 import ctypes
 from . import qmixbus
-import sys
+from . import _qmixloadlib
 
-# Ensure that the shared library is in the search path
-if sys.platform.startswith('win32'):
-    valve_api = ctypes.windll.LoadLibrary(r"labbCAN_Valve_API.dll")
-else:
-    valve_api = ctypes.cdll.LoadLibrary(r"liblabbCAN_Valve_API.so")
-    
+valve_api = _qmixloadlib.load_lib("labbCAN_Valve_API")
+
 
 class Valve(qmixbus.Device):
     def __init__(self, handle = ctypes.c_longlong()):

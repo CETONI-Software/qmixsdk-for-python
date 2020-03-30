@@ -1,15 +1,10 @@
 import ctypes
 from . import qmixbus
-from . import qmixanalogio
-import sys
 from enum import Enum
 from collections import namedtuple
+from . import _qmixloadlib
 
-# Ensure that the shared library is in the search path
-if sys.platform.startswith('win32'):
-    ctrl_api = ctypes.windll.LoadLibrary(r"labbCAN_Controller_API.dll")
-else:
-    ctrl_api = ctypes.cdll.LoadLibrary(r"liblabbCAN_Controller_API.so")
+ctrl_api = _qmixloadlib.load_lib("labbCAN_Controller_API")
 
 
 class LoopOutType(Enum):

@@ -1,16 +1,11 @@
 import ctypes
 from . import qmixbus
-from . import qmixvalve
-import sys
 from enum import Enum
 from collections import namedtuple
 from .qmixbus import UnitPrefix, TimeUnit
+from . import _qmixloadlib
 
-# Ensure that the shared library is in the search path
-if sys.platform.startswith('win32'):
-    motion_api = ctypes.windll.LoadLibrary(r"labbCAN_MotionControl_API.dll")
-else:
-    motion_api = ctypes.cdll.LoadLibrary(r"liblabbCAN_MotionControl_API.so")
+motion_api = _qmixloadlib.load_lib("labbCAN_MotionControl_API")
 
 
 MAXIMUM_VELOCITY = 0xFFFFFFFF

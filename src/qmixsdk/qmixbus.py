@@ -1,27 +1,26 @@
 import ctypes
-import sys
 import time
 from enum import Enum
 from collections import namedtuple
+from . import _qmixloadlib
 
-# Ensure that the shared library is in the search path
-if sys.platform.startswith('win32'):
-    bus_api = ctypes.windll.LoadLibrary(r"labbCAN_Bus_API.dll")
-else:
-    bus_api = ctypes.cdll.LoadLibrary(r"liblabbCAN_Bus_API.so")
+bus_api = _qmixloadlib.load_lib("labbCAN_Bus_API")
 
 
-def throw_on_error(errorcode):
+def throw_on_error(errorcode, api_function = None):
     """
     Throw an exception if the given errorcode indicates an error condition.
 
     All returned errors are negative
     """
     if errorcode < 0:
-        raise DeviceError(errorcode)
+        raise DeviceError(errorcode, api_function)
 
 
 class UnitPrefix(Enum):
+    """
+    Unit prefix for unit construction
+    """
     unit = 0
     deci = -1
     centi = -2
@@ -29,15 +28,43 @@ class UnitPrefix(Enum):
     micro = -6
 
 class TimeUnit(Enum):
+    """
+    Time unit identifiers for construction of derived units
+    """
     per_second = 1
     per_minute = 60
     per_hour = 3600
 
 
 class CommState(Enum):
+    """
+    Communication state identifiers for Bus.set_communication_state() function
+    """
     stopped = 0x02
     configurable = 0x80
     operational = 0x01
+
+
+class EventId(Enum):
+    """
+    Event identifiers for event sreturned by Bus.read_event() function
+    """
+    data_link_layer = 2
+    error = 4
+    device_emergency = 5
+    device_guard = 6
+
+
+class GuardEventId(Enum):
+    """
+    Identifiers dfor device_guard events read via Bus.read_event() function
+    """
+    nodeguard_err_occurred = 0
+    nodeguard_err_resolved = 1
+    heartbeat_err_occurred = 2
+    heartbear_err_resolved = 3
+    notestate_err = 4
+    notestate_changed = 5
 
 
 class Error(Exception):
@@ -55,11 +82,15 @@ class DeviceError(Error):
     of the error
     """
 
-    def __init__(self, errorcode):
+    def __init__(self, errorcode, api_function = None):
         msg = ctypes.create_string_buffer(255)
         bus_api.LCB_GetErrMsg(errorcode, msg, ctypes.sizeof(msg))
         # Call the base class constructor with the parameters it needs
-        super().__init__(msg.value.decode('ascii'), errorcode)
+        error_msg = ""
+        if not api_function is None:
+            error_msg = api_function + " caused error: "
+        error_msg += msg.value.decode('ascii')
+        super().__init__(error_msg, errorcode)
         self.errorcode = errorcode
 
 
@@ -149,9 +180,9 @@ class HandleOwner:
     """
     Base class for all Qmix devices and channels that use a device handle
     """
-    def __init__(self, handle = ctypes.c_longlong()):
-        self.handle = handle    
-    
+    def __init__(self, handle=ctypes.c_longlong()):
+        self.handle = handle
+
 
 
 class Device(HandleOwner):
@@ -159,10 +190,10 @@ class Device(HandleOwner):
     Base class for all Qmix device that provides some common functionality
     for all devices
     """
-    def __init__(self, handle = ctypes.c_longlong()):
+    def __init__(self, handle=ctypes.c_longlong()):
         super().__init__(handle)
 
-    
+
     def get_device_name(self):
         """
         Query name of this device
@@ -225,7 +256,7 @@ class Device(HandleOwner):
         """
         Query node identifier of specific device
 
-        Some devices, such as CANopen devices, have a unique node 
+        Some devices, such as CANopen devices, have a unique node
         identifier. This function returns this identifier
         """
         result = bus_api.LCB_GetNodeId(self.handle)
@@ -241,12 +272,11 @@ class Device(HandleOwner):
         via the common device specific API. Use this function to set the value
         of a certain property by providing a property ID and a value.
         """
-        result = bus_api.LCB_SetDeviceProperty(self.handle, property_id,
-            ctypes.c_double(value))
+        result = bus_api.LCB_SetDeviceProperty(self.handle, property_id, ctypes.c_double(value))
         throw_on_error(result)
 
 
-    def get_device_property(self, property_id : int):
+    def get_device_property(self, property_id: int):
         """
         Function for reading a device specific property.
         """
@@ -256,6 +286,24 @@ class Device(HandleOwner):
         throw_on_error(result)
         return device_property.value
 
+
+class Event:
+    """
+    Encapsulates event data when reading from event queue
+    """
+    def __init__(self):
+        self.event_id = -1
+        self.device = Device(0)
+        self.data = []
+        self.string = ""
+
+    def is_valid(self):
+        """
+        Returns true if the internal device identifier is valid
+        Use this function to test, if the read event function returned
+        a valid event or if the event queue is empty
+        """
+        return self.event_id > -1
 
 
 
@@ -271,7 +319,7 @@ class Bus:
         and scans for connected devices.
         """
         result = bus_api.LCB_Open(ctypes.c_char_p(device_config_path.encode('ascii')), 0)
-        throw_on_error(result)
+        throw_on_error(result, "LCB_Open")
 
 
     #---------------------------------------------------------------------------
@@ -331,3 +379,32 @@ class Bus:
         bus_api.LCB_GetErrMsg(errorcode, msg, ctypes.sizeof(msg))
         return msg.value.decode('ascii')
 
+    @staticmethod
+    def read_event():
+        """
+        Try to read one event from the lab event queue.
+        The internal queue stores events like network events, emergency events
+        of single devices. This function tries to read one event from this queue
+        and returns immediately with an invalid event if the queue is empty.
+        """
+        event_id = ctypes.c_long()
+        device_handle = ctypes.c_longlong()
+        data1 = ctypes.c_long()
+        data2 = ctypes.c_long()
+        event_id = ctypes.c_long()
+        event_string = ctypes.create_string_buffer(255)
+        result = bus_api.LCB_ReadEventEx(ctypes.byref(event_id),
+                                         ctypes.byref(device_handle),
+                                         ctypes.byref(data1),
+                                         ctypes.byref(data2),
+                                         event_string,
+                                         ctypes.sizeof(event_string))
+        if result == -0xB: # -ERR_AGAIN
+            return Event()
+        throw_on_error(result)
+        event = Event()
+        event.event_id = event_id.value
+        event.device = Device(device_handle)
+        event.data = [data1.value, data2.value]
+        event.string = event_string.value.decode('ascii')
+        return event

@@ -1,14 +1,9 @@
 import ctypes
-import sys
 from . import qmixbus
-from enum import Enum
 from collections import namedtuple
+from . import _qmixloadlib
 
-
-if sys.platform.startswith('win32'):
-    analogio_api = ctypes.windll.LoadLibrary(r"labbCAN_AnalogIO_API.dll")
-else:
-    analogio_api = ctypes.cdll.LoadLibrary(r"liblabbCAN_AnalogIO_API.so")
+analogio_api = _qmixloadlib.load_lib("labbCAN_AnalogIO_API")
 
 
 class AnalogChannel(qmixbus.HandleOwner):

@@ -1,14 +1,8 @@
 import ctypes
 from . import qmixbus
-import sys
-from enum import Enum
-from collections import namedtuple
+from . import _qmixloadlib
 
-# Ensure that the shared library is in the search path
-if sys.platform.startswith('win32'):
-    digio_api = ctypes.windll.LoadLibrary(r"labbCAN_DigIO_API.dll")
-else:
-    digio_api = ctypes.cdll.LoadLibrary(r"liblabbCAN_DigIO_API.so")
+digio_api = _qmixloadlib.load_lib("labbCAN_DigIO_API")
 
 
 class DigitalChannel(qmixbus.HandleOwner):

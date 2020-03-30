@@ -1,16 +1,12 @@
 import ctypes
 from . import qmixbus
 from . import qmixvalve
-import sys
 from enum import Enum
 from collections import namedtuple
 from .qmixbus import UnitPrefix, TimeUnit
+from . import _qmixloadlib
 
-# Ensure that the shared library is in the search path
-if sys.platform.startswith('win32'):
-    pump_api = ctypes.windll.LoadLibrary(r"labbCAN_Pump_API.dll")
-else:
-    pump_api = ctypes.cdll.LoadLibrary(r"liblabbCAN_Pump_API.so")
+pump_api = _qmixloadlib.load_lib("labbCAN_Pump_API")
 
 
 class VolumeUnit(Enum):
