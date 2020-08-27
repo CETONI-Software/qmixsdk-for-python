@@ -1,10 +1,23 @@
 import sys
 import os
 import ctypes
+from ctypes import util
 
 load_cnt = 0
 libpath = None
 
+def init_libpath_from_dir():
+    """
+    Helper function to return the right libpath depending on the platform
+    The directory layout of the final QmixSDK package is different on Windows and Linux
+    """
+    if sys.platform.startswith('win32'):
+        reldir = r"../../.."
+    else:
+        reldir = r"../.."
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), reldir))
+    
+    
 def load_lib(libname):
     """
     Helper function for loading QmixSDK DLLs.
@@ -14,9 +27,9 @@ def load_lib(libname):
     global libpath
     if libpath is None:
         libpath = os.environ.get('QMIXSDK')
-
+        
     if libpath is None:
-        libpath = os.path.abspath(os.path.join(os.path.dirname(__file__), r"../../.."))
+        libpath = init_libpath_from_dir()
 
     if sys.platform.startswith('win32'):
         global load_cnt
@@ -34,5 +47,11 @@ def load_lib(libname):
         load_cnt += 1
         return ctypes.windll.LoadLibrary(libname)
     else:
-        libname = os.path.join(libpath, "lib" + libname + ".so")
+        # Standard solution if the shared libraries are properly installed
+        # in the Linux libs folders - for debian package
+        libname = ctypes.util.find_library(libname)
+        # Fall back solution for the distribution via tar archive where whe
+        # know the location of the shared libraries
+        if libname is None:
+            libname = os.path.join(libpath, "lib/lib" + libname + ".so")
         return ctypes.cdll.LoadLibrary(libname)
